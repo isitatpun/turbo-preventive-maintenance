@@ -49,11 +49,13 @@ export const authService = {
   // ==================== GOOGLE SSO ====================
   
   // Initiate Google OAuth login
-  async signInWithGoogle() {
+  // 👇 UPDATED: Accepts redirectUrl parameter
+  async signInWithGoogle(redirectUrl) {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/login`,
+        // 👇 UPDATED: Uses the passed URL (from Store) or defaults to current origin
+        redirectTo: redirectUrl || window.location.origin,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',

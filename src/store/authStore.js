@@ -32,10 +32,14 @@ const useAuthStore = create(
       },
 
       // ==================== GOOGLE SSO LOGIN ====================
-      loginWithGoogle: async () => {
+loginWithGoogle: async () => {
         set({ isLoading: true, error: null });
         try {
-          await authService.signInWithGoogle();
+          // 👇 FIX: Pass window.location.origin to ensure they come back 
+          // to THIS specific app (e.g., turbo-preventive-maintenance)
+          // instead of the default "Parking System" URL.
+          await authService.signInWithGoogle(window.location.origin);
+          
         } catch (error) {
           set({ isLoading: false, error: error.message });
           throw error;
@@ -50,7 +54,8 @@ const useAuthStore = create(
             user, 
             isAuthenticated: true, 
             isLoading: false,
-            viewingAs: user.role === 'technician' ? 'technician' : 'manager'
+            // Ensure safe fallbacks for viewingAs
+            viewingAs: user?.role === 'technician' ? 'technician' : 'manager'
           });
           return user;
         } catch (error) {
