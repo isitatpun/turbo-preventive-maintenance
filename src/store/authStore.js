@@ -31,14 +31,12 @@ const useAuthStore = create(
         }
       },
 
-      // ==================== GOOGLE SSO LOGIN ====================
-loginWithGoogle: async () => {
+// ==================== GOOGLE SSO LOGIN ====================
+      loginWithGoogle: async () => {
         set({ isLoading: true, error: null });
         try {
-          // 👇 FIX: Pass window.location.origin to ensure they come back 
-          // to THIS specific app (e.g., turbo-preventive-maintenance)
-          // instead of the default "Parking System" URL.
-          await authService.signInWithGoogle(window.location.origin);
+          // FIX: Add '/login' to the end so Google returns them directly to the Login component!
+          await authService.signInWithGoogle(`${window.location.origin}/login`);
           
         } catch (error) {
           set({ isLoading: false, error: error.message });
