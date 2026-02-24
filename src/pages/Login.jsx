@@ -57,12 +57,17 @@ const Login = () => {
     handleCallback();
   }, [handleGoogleCallback]);
 
-  // Redirect if authenticated
+// Redirect if authenticated
   useEffect(() => {
     if (isAuthenticated && user) {
-      const redirectPath = user.role === 'technician' 
-        ? '/technician/my-tasks' 
-        : '/dashboard';
+      // 1. Check the role and set the exact paths that match App.jsx
+      let redirectPath = '/dashboard'; // Default for master_admin and manager
+      
+      if (user.role === 'technician') {
+        redirectPath = '/my-tasks';
+      }
+
+      // 2. Navigate to the correct, existing path
       navigate(redirectPath, { replace: true });
     }
   }, [isAuthenticated, user, navigate]);
