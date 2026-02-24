@@ -62,7 +62,7 @@ const Login = () => {
     if (isAuthenticated && user) {
       const redirectPath = user.role === 'technician' 
         ? '/technician/my-tasks' 
-        : '/manager/dashboard';
+        : '/dashboard';
       navigate(redirectPath, { replace: true });
     }
   }, [isAuthenticated, user, navigate]);
