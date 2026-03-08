@@ -206,6 +206,54 @@ const useTaskStore = create((set, get) => ({
     }
   },
 
+  // Approve task request (requested → open)
+  approveTaskRequest: async (taskId, approverId) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedTask = await taskService.approveRequest(taskId, approverId);
+      set(state => ({
+        tasks: state.tasks.map(t => t.id === taskId ? { ...t, ...updatedTask } : t),
+        isLoading: false
+      }));
+      return updatedTask;
+    } catch (error) {
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  // Reject task request (requested → rejected)
+  rejectTaskRequest: async (taskId) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedTask = await taskService.rejectRequest(taskId);
+      set(state => ({
+        tasks: state.tasks.map(t => t.id === taskId ? { ...t, ...updatedTask } : t),
+        isLoading: false
+      }));
+      return updatedTask;
+    } catch (error) {
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  // Acknowledge rejected task request (technician dismisses → delete)
+  acknowledgeRejectedTask: async (taskId) => {
+    set({ isLoading: true, error: null });
+    try {
+      await taskService.delete(taskId);
+      set(state => ({
+        tasks: state.tasks.filter(t => t.id !== taskId),
+        isLoading: false
+      }));
+      return true;
+    } catch (error) {
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
   // Add category
   addCategory: async (categoryData) => {
     try {

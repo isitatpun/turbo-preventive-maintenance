@@ -1,5 +1,6 @@
 // src/pages/manager/Approvals.jsx
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   CheckCircle, 
   XCircle, 
@@ -22,15 +23,18 @@ import {
 import useTaskStore from '../../store/taskStore';
 import useAuthStore from '../../store/authStore';
 import { TASK_STATUS, SUBMISSION_STATUS } from '../../data/constants';
+import { ClipboardList } from 'lucide-react';
 
 const Approvals = () => {
   const { user } = useAuthStore();
-  const { 
-    tasks, 
-    isLoading, 
+  const {
+    tasks,
+    isLoading,
     fetchTasks,
-    approveTask, 
-    rejectTask 
+    approveTask,
+    rejectTask,
+    approveTaskRequest,
+    rejectTaskRequest
   } = useTaskStore();
 
   // Filter state - default to 'normal' (Completed Normal)
@@ -42,6 +46,7 @@ const Approvals = () => {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showApproveAllModal, setShowApproveAllModal] = useState(false);
+  const [requestConfirm, setRequestConfirm] = useState(null); // { type: 'approve' | 'reject', task }
   
   // Form states
   const [rejectForm, setRejectForm] = useState({
@@ -60,7 +65,10 @@ const Approvals = () => {
 
   // Get pending approval tasks
   const allPendingTasks = tasks.filter(t => t.status === TASK_STATUS.PENDING_APPROVAL);
-  
+
+  // Get requested tasks (from technicians)
+  const requestedTasks = tasks.filter(t => t.status === TASK_STATUS.REQUESTED);
+
   // Filter pending tasks based on submission type
   const filteredPendingTasks = allPendingTasks.filter(task => {
     if (filterType === 'normal') return task.submissionStatus === SUBMISSION_STATUS.NORMAL;
@@ -73,6 +81,7 @@ const Approvals = () => {
   const normalCount = allPendingTasks.filter(t => t.submissionStatus === SUBMISSION_STATUS.NORMAL).length;
   const issueCount = allPendingTasks.filter(t => t.submissionStatus === SUBMISSION_STATUS.ISSUE).length;
   const skippedCount = allPendingTasks.filter(t => t.submissionStatus === SUBMISSION_STATUS.SKIPPED).length;
+  const requestedCount = requestedTasks.length;
 
   // Fetch tasks on mount
   useEffect(() => {
@@ -247,6 +256,38 @@ const Approvals = () => {
     setShowDetailModal(true);
   };
 
+  // Handle approve task request (after confirmation)
+  const handleApproveRequest = async () => {
+    if (!requestConfirm?.task) return;
+    const task = requestConfirm.task;
+    setRequestConfirm(null);
+    setActionLoading(true);
+    try {
+      await approveTaskRequest(task.id, user.id);
+      setSuccessMessage(`Task "${task.title}" approved — now open in the pool`);
+    } catch (error) {
+      setErrorMessage('Failed to approve request: ' + error.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle reject task request (after confirmation)
+  const handleRejectRequest = async () => {
+    if (!requestConfirm?.task) return;
+    const task = requestConfirm.task;
+    setRequestConfirm(null);
+    setActionLoading(true);
+    try {
+      await rejectTaskRequest(task.id);
+      setSuccessMessage(`Task request "${task.title}" rejected`);
+    } catch (error) {
+      setErrorMessage('Failed to reject request: ' + error.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -289,8 +330,8 @@ const Approvals = () => {
         </div>
       )}
 
-      {/* Filter Tabs - 3 Tabs, Full Width */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Filter Tabs - 4 Tabs, Full Width */}
+      <div className="grid grid-cols-4 gap-4">
         {/* Completed Normal Tab */}
         <button
           onClick={() => setFilterType('normal')}
@@ -389,9 +430,131 @@ const Approvals = () => {
             </div>
           )}
         </button>
+
+        {/* Task Requests Tab */}
+        <button
+          onClick={() => setFilterType('requests')}
+          className={`relative p-5 rounded-2xl border-2 transition-all ${
+            filterType === 'requests'
+              ? 'border-orange-500 bg-orange-50 shadow-sm'
+              : 'border-gray-200 bg-white hover:border-orange-300 hover:bg-orange-50/50'
+          }`}
+        >
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+              filterType === 'requests' ? 'bg-orange-500' : 'bg-orange-100'
+            }`}>
+              <ClipboardList className={`w-6 h-6 ${
+                filterType === 'requests' ? 'text-white' : 'text-orange-600'
+              }`} />
+            </div>
+            <div className="text-left">
+              <p className={`text-2xl font-bold ${
+                filterType === 'requests' ? 'text-orange-700' : 'text-gray-900'
+              }`}>{requestedCount}</p>
+              <p className={`text-sm font-medium ${
+                filterType === 'requests' ? 'text-orange-600' : 'text-gray-500'
+              }`}>Task Requests</p>
+            </div>
+          </div>
+          {filterType === 'requests' && (
+            <div className="absolute top-3 right-3">
+              <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+            </div>
+          )}
+          {filterType !== 'requests' && requestedCount > 0 && (
+            <div className="absolute top-3 right-3">
+              <div className="w-3 h-3 bg-orange-400 rounded-full animate-pulse"></div>
+            </div>
+          )}
+        </button>
       </div>
 
+      {/* Task Requests List */}
+      {filterType === 'requests' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Task Requests from Technicians</h2>
+            <span className="text-sm text-gray-500">{requestedCount} {requestedCount === 1 ? 'request' : 'requests'}</span>
+          </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+            </div>
+          ) : requestedTasks.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <ClipboardList className="w-8 h-8 text-orange-500" />
+              </div>
+              <p className="text-gray-900 font-medium mb-1">No task requests</p>
+              <p className="text-gray-500 text-sm">Technicians haven't submitted any task requests yet</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {requestedTasks.map((task) => (
+                <div key={task.id} className="p-6 hover:bg-gray-50/50 transition-colors">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: `${task.category?.color || '#6B7280'}20` }}
+                        >
+                          <Tag className="w-5 h-5" style={{ color: task.category?.color || '#6B7280' }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900">{task.title}</p>
+                          {task.description && (
+                            <p className="text-sm text-gray-500 mt-0.5 truncate">{task.description}</p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <User className="w-3.5 h-3.5" />
+                              {task.creator?.name || 'Unknown'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Tag className="w-3.5 h-3.5" />
+                              {task.category?.name || '—'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5" />
+                              {task.location?.name || '—'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5" />
+                              Due {formatDate(task.dueDate)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => setRequestConfirm({ type: 'reject', task })}
+                        disabled={actionLoading}
+                        className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        onClick={() => setRequestConfirm({ type: 'approve', task })}
+                        disabled={actionLoading}
+                        className="px-4 py-2 text-sm font-medium text-white bg-green-500 rounded-xl hover:bg-green-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Approve
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Pending Tasks List */}
+      {filterType !== 'requests' && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
@@ -520,10 +683,56 @@ const Approvals = () => {
           </div>
         )}
       </div>
+      )}
+
+      {/* Request Confirm Modal */}
+      {requestConfirm && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm animate-fade-in">
+            <div className="p-6">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                requestConfirm.type === 'approve' ? 'bg-green-100' : 'bg-red-100'
+              }`}>
+                {requestConfirm.type === 'approve'
+                  ? <CheckCircle className="w-6 h-6 text-green-600" />
+                  : <XCircle className="w-6 h-6 text-red-600" />}
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+                {requestConfirm.type === 'approve' ? 'Approve Task Request?' : 'Reject Task Request?'}
+              </h3>
+              <p className="text-sm text-gray-500 text-center mb-6">
+                {requestConfirm.type === 'approve'
+                  ? <>Task <span className="font-medium text-gray-700">"{requestConfirm.task.title}"</span> will be approved and added to the open task pool.</>
+                  : <>Task <span className="font-medium text-gray-700">"{requestConfirm.task.title}"</span> will be rejected. The technician will be notified.</>}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setRequestConfirm(null)}
+                  disabled={actionLoading}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={requestConfirm.type === 'approve' ? handleApproveRequest : handleRejectRequest}
+                  disabled={actionLoading}
+                  className={`flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
+                    requestConfirm.type === 'approve' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'
+                  }`}
+                >
+                  {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {requestConfirm.type === 'approve' ? 'Approve' : 'Reject'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Task Detail Modal */}
-      {showDetailModal && selectedTask && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {showDetailModal && selectedTask && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-fade-in">
             <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
               <div className="flex items-center justify-between">
@@ -635,12 +844,13 @@ const Approvals = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Approve Confirmation Modal */}
-      {showApproveModal && selectedTask && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {showApproveModal && selectedTask && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl w-full max-w-md animate-fade-in">
             <div className="p-6">
               {/* Header */}
@@ -767,12 +977,13 @@ const Approvals = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Approve All Confirmation Modal */}
-      {showApproveAllModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {showApproveAllModal && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl w-full max-w-md animate-fade-in">
             <div className="p-6">
               <div className="text-center mb-6">
@@ -823,12 +1034,13 @@ const Approvals = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Reject Modal */}
-      {showRejectModal && selectedTask && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {showRejectModal && selectedTask && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl w-full max-w-md animate-fade-in">
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-center justify-between">
@@ -919,7 +1131,8 @@ const Approvals = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

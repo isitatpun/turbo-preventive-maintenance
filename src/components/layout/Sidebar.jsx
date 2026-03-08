@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  ClipboardList, 
-  ClipboardCheck, 
-  History, 
-  Calendar, 
-  BarChart3, 
-  Users, 
+import {
+  LayoutDashboard,
+  ClipboardList,
+  ClipboardCheck,
+  History,
+  Calendar,
+  BarChart3,
+  Users,
   Settings,
   FileText,
+  ScrollText,
   ChevronDown,
   LogOut,
   X,
-  Wrench
+  Wrench,
+  ListChecks
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import { USER_ROLES } from '../../data/constants';
@@ -30,6 +32,7 @@ const Sidebar = () => {
     { icon: ClipboardCheck, label: 'Approvals', path: '/approvals' },
     { icon: History, label: 'Task History', path: '/history' },
     { icon: Calendar, label: 'Schedule', path: '/calendar' },
+    { icon: ScrollText, label: 'Contracts', path: '/contracts' },
     { icon: BarChart3, label: 'Reports', path: '/reports' },
     { icon: Users, label: 'Users', path: '/users' },
     { icon: FileText, label: 'Documentation', path: '/docs' },
@@ -39,8 +42,10 @@ const Sidebar = () => {
   const technicianMenuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: ClipboardList, label: 'My Tasks', path: '/my-tasks' },
+    { icon: ListChecks, label: 'Tasks', path: '/tasks' },
     { icon: History, label: 'Task History', path: '/history' },
-    { icon: Calendar, label: 'Schedule', path: '/calendar' }
+    { icon: Calendar, label: 'Schedule', path: '/calendar' },
+    { icon: ScrollText, label: 'Contracts', path: '/contracts' }
   ];
 
   const effectiveRole = getEffectiveRole();

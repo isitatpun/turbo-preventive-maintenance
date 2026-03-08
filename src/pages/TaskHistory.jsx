@@ -30,10 +30,23 @@ const TaskHistory = () => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [technicianFilter, setTechnicianFilter] = useState('');
+  const [yearFilter, setYearFilter] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   const technicians = getTechnicians();
+
+  // Get available years from tasks
+  const availableYears = useMemo(() => {
+    const years = new Set();
+    tasks.forEach(task => {
+      if (task.submittedAt || task.createdAt) {
+        const year = new Date(task.submittedAt || task.createdAt).getFullYear();
+        years.add(year);
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [tasks]);
 
   // --- FILTERING LOGIC ---
   const historyTasks = useMemo(() => {
@@ -69,10 +82,18 @@ const TaskHistory = () => {
       result = result.filter(t => t.submittedBy === technicianFilter);
     }
 
+    // 5. Year Filter
+    if (yearFilter) {
+      result = result.filter(t => {
+        const taskYear = new Date(t.submittedAt || t.createdAt).getFullYear();
+        return taskYear === parseInt(yearFilter);
+      });
+    }
+
     result.sort((a, b) => new Date(b.submittedAt || b.createdAt) - new Date(a.submittedAt || a.createdAt));
 
     return result;
-  }, [tasks, user, isManager, searchTerm, categoryFilter, locationFilter, technicianFilter]);
+  }, [tasks, user, isManager, searchTerm, categoryFilter, locationFilter, technicianFilter, yearFilter]);
 
   // --- STATS LOGIC ---
   // Returns null if not manager, effectively cutting off access to analytics
@@ -121,10 +142,11 @@ const TaskHistory = () => {
     setCategoryFilter('');
     setLocationFilter('');
     setTechnicianFilter('');
+    setYearFilter('');
   };
 
-  const hasActiveFilters = searchTerm || categoryFilter || locationFilter || technicianFilter;
-  const activeFilterCount = [categoryFilter, locationFilter, technicianFilter].filter(Boolean).length;
+  const hasActiveFilters = searchTerm || categoryFilter || locationFilter || technicianFilter || yearFilter;
+  const activeFilterCount = [categoryFilter, locationFilter, technicianFilter, yearFilter].filter(Boolean).length;
 
   return (
     <div className="space-y-6 page-transition">
@@ -193,6 +215,25 @@ const TaskHistory = () => {
         
         {/* Filter Pills Row */}
         <div className="p-4 flex items-center gap-3 flex-wrap">
+          {/* Year Filter */}
+          <div className="relative">
+            <select
+              value={yearFilter}
+              onChange={(e) => setYearFilter(e.target.value)}
+              className={`appearance-none pl-4 pr-8 py-2 rounded-full text-sm font-medium transition-all cursor-pointer border-0 ${
+                yearFilter 
+                  ? 'bg-primary-100 text-primary-700' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <option value="">Year</option>
+              {availableYears.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-gray-500" />
+          </div>
+
           {/* Category Filter */}
           <div className="relative">
             <select

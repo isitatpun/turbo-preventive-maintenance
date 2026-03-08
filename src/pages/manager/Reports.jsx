@@ -1,18 +1,19 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  BarChart3, 
-  TrendingUp, 
+import { useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  BarChart3,
+  TrendingUp,
   CheckCircle,
   AlertTriangle,
   Download,
+  FileText,
   ChevronDown,
   Calendar
 } from 'lucide-react';
 import { 
-  format, 
-  parseISO, 
-  startOfMonth, 
-  endOfMonth, 
+  format,
+  parseISO,
+  endOfMonth,
   startOfYear,
   endOfYear,
   eachDayOfInterval, 
@@ -31,34 +32,31 @@ import { TASK_STATUS } from '../../data/constants';
 const Reports = () => {
   const { tasks, categories, locations } = useTaskStore();
   const { users, getTechnicians } = useUserStore();
-  
+
+  const reportRef = useRef(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   // View mode: 'monthly' or 'yearly'
   const [viewMode, setViewMode] = useState('monthly');
   
-  // For monthly view: specific month/year
-  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
-  
+  // For monthly view: separate month and year
+  const [selectedMonthNum, setSelectedMonthNum] = useState(new Date().getMonth() + 1); // 1-12
+  const [selectedMonthYear, setSelectedMonthYear] = useState(new Date().getFullYear());
+
   // For yearly view: specific year
   const [selectedYear, setSelectedYear] = useState(format(new Date(), 'yyyy'));
 
   const technicians = getTechnicians();
 
-  // Generate month options (Jan 2026 to next month of current date)
-  const monthOptions = useMemo(() => {
-    const options = [];
-    const start = new Date(2026, 0, 1); // January 2026
-    const end = addMonths(new Date(), 1); // Next month from now
-    
-    let current = new Date(start);
-    while (current <= end) {
-      options.push({
-        value: format(current, 'yyyy-MM'),
-        label: format(current, 'MMMM yyyy')
-      });
-      current = addMonths(current, 1);
-    }
-    return options;
-  }, []);
+  // Month name options (always Jan–Dec)
+  const monthNameOptions = [
+    { value: 1, label: 'January' }, { value: 2, label: 'February' },
+    { value: 3, label: 'March' },   { value: 4, label: 'April' },
+    { value: 5, label: 'May' },     { value: 6, label: 'June' },
+    { value: 7, label: 'July' },    { value: 8, label: 'August' },
+    { value: 9, label: 'September'},{ value: 10, label: 'October' },
+    { value: 11, label: 'November'},{ value: 12, label: 'December' }
+  ];
 
   // Generate year options (2026 to year of next month)
   const yearOptions = useMemo(() => {
@@ -78,8 +76,7 @@ const Reports = () => {
   // Get date range based on view mode
   const dateRange = useMemo(() => {
     if (viewMode === 'monthly') {
-      const [year, month] = selectedMonth.split('-').map(Number);
-      const start = new Date(year, month - 1, 1);
+      const start = new Date(selectedMonthYear, selectedMonthNum - 1, 1);
       const end = endOfMonth(start);
       return { start, end };
     } else {
@@ -88,7 +85,7 @@ const Reports = () => {
       const end = endOfYear(new Date(year, 0, 1));
       return { start, end };
     }
-  }, [viewMode, selectedMonth, selectedYear]);
+  }, [viewMode, selectedMonthNum, selectedMonthYear, selectedYear]);
 
   // Filter tasks by date range
   const filteredTasks = useMemo(() => {
@@ -202,26 +199,122 @@ const Reports = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `pm-report-${viewMode === 'monthly' ? selectedMonth : selectedYear}.csv`;
+    a.download = `pm-report-${viewMode === 'monthly' ? `${selectedMonthYear}-${String(selectedMonthNum).padStart(2,'0')}` : selectedYear}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
+  const handleExportPDF = async () => {
+    if (!reportRef.current) return;
+    setPdfLoading(true);
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf')
+      ]);
+
+      // Scroll to top so html2canvas captures from the correct position
+      window.scrollTo(0, 0);
+      await new Promise(r => setTimeout(r, 100));
+
+      const element = reportRef.current;
+      const canvas = await html2canvas(element, {
+        scale: 3,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#FFFFFF',
+        logging: false,
+        windowWidth: element.scrollWidth,
+        scrollX: 0,
+        scrollY: 0,
+        ignoreElements: (el) => el.hasAttribute('data-pdf-ignore'),
+        onclone: (doc) => {
+          // Strip animations / transitions / transforms from every element
+          doc.querySelectorAll('*').forEach(el => {
+            el.style.animation = 'none';
+            el.style.transition = 'none';
+            el.style.opacity = '1';
+            el.style.transform = 'none';
+            el.style.boxShadow = 'none';
+            el.style.backdropFilter = 'none';
+            el.style.webkitBackdropFilter = 'none';
+          });
+          // Show the hidden print-only period badge
+          const badge = doc.getElementById('pdf-period-badge');
+          if (badge) badge.style.display = 'flex';
+        }
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const usableW = pageW - margin * 2;
+      const imgH = (canvas.height * usableW) / canvas.width;
+
+      let yOffset = 0;
+      let pageNum = 0;
+      while (yOffset < imgH) {
+        if (pageNum > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', margin, margin - (yOffset), usableW, imgH);
+        yOffset += pageH - margin * 2;
+        pageNum++;
+      }
+
+      const label = viewMode === 'monthly'
+        ? `${selectedMonthYear}-${String(selectedMonthNum).padStart(2, '0')}`
+        : selectedYear;
+      pdf.save(`pm-report-${label}.pdf`);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 page-transition">
+    <div ref={reportRef} className="space-y-6 page-transition">
+
+      {/* PDF loading overlay — portalled to body so it stays outside the captured ref */}
+      {pdfLoading && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-primary-500 flex items-center justify-center shadow-xl animate-pulse">
+            <FileText className="w-8 h-8 text-white" />
+          </div>
+          <div className="text-center">
+            <p className="text-gray-900 font-semibold text-lg">Generating PDF…</p>
+            <p className="text-gray-500 text-sm mt-1">This may take a moment</p>
+          </div>
+          <div className="w-48 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+            <div className="h-full bg-primary-500 rounded-full animate-[shimmer_1.2s_ease-in-out_infinite]" style={{width: '60%'}} />
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Reports & Analytics</h1>
           <p className="text-gray-500 font-normal text-sm mt-1">Insights and performance metrics</p>
         </div>
-        <Button variant="outline" icon={Download} onClick={handleExport}>
-          Export Report
-        </Button>
+        <div className="flex items-center gap-2" data-html2canvas-ignore="true">
+          <Button variant="outline" icon={Download} onClick={handleExport}>
+            Export CSV
+          </Button>
+          <button
+            onClick={handleExportPDF}
+            disabled={pdfLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-xl hover:bg-primary-600 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <FileText className="w-4 h-4" /> Export PDF
+          </button>
+        </div>
       </div>
 
-      {/* Global Filter Bar */}
-      <Card className="p-4">
+      <div className="space-y-6">
+
+      {/* Global Filter Bar — hidden in PDF, replaced by badge below */}
+      <Card className="p-4" data-pdf-ignore="true">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-gray-400" />
@@ -254,17 +347,41 @@ const Reports = () => {
 
           {/* Date Selector */}
           {viewMode === 'monthly' ? (
-            <div className="relative">
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="appearance-none pl-4 pr-10 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-              >
-                {monthOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-gray-500" />
+            <div className="flex items-center gap-2">
+              {/* Year first */}
+              <div className="relative">
+                <select
+                  value={selectedMonthYear}
+                  onChange={(e) => {
+                    const newYear = Number(e.target.value);
+                    setSelectedMonthYear(newYear);
+                    // Clamp month if new year is current year and selected month is in the future
+                    const maxMonth = newYear === new Date().getFullYear() ? new Date().getMonth() + 1 : 12;
+                    if (selectedMonthNum > maxMonth) setSelectedMonthNum(maxMonth);
+                  }}
+                  className="appearance-none pl-4 pr-10 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                >
+                  {yearOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-gray-500" />
+              </div>
+              {/* Month second — capped at current month when year = current year */}
+              <div className="relative">
+                <select
+                  value={selectedMonthNum}
+                  onChange={(e) => setSelectedMonthNum(Number(e.target.value))}
+                  className="appearance-none pl-4 pr-10 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                >
+                  {monthNameOptions
+                    .filter(opt => selectedMonthYear < new Date().getFullYear() || opt.value <= new Date().getMonth() + 1)
+                    .map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-gray-500" />
+              </div>
             </div>
           ) : (
             <div className="relative">
@@ -283,14 +400,31 @@ const Reports = () => {
 
           <div className="ml-auto text-sm text-gray-500 font-normal">
             Showing data for <span className="font-medium text-gray-900">
-              {viewMode === 'monthly' 
-                ? format(new Date(selectedMonth + '-01'), 'MMMM yyyy')
+              {viewMode === 'monthly'
+                ? format(new Date(selectedMonthYear, selectedMonthNum - 1, 1), 'MMMM yyyy')
                 : selectedYear
               }
             </span>
           </div>
         </div>
       </Card>
+
+      {/* Print-only period badge — hidden on screen, shown in PDF via onclone */}
+      <div
+        id="pdf-period-badge"
+        style={{ display: 'none' }}
+        className="items-center gap-3 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl w-fit"
+      >
+        <Calendar className="w-4 h-4 text-gray-400" />
+        <span className="text-sm font-medium text-gray-700">
+          {viewMode === 'monthly' ? 'Monthly' : 'Yearly'} —{' '}
+          <strong>
+            {viewMode === 'monthly'
+              ? format(new Date(selectedMonthYear, selectedMonthNum - 1, 1), 'MMMM yyyy')
+              : selectedYear}
+          </strong>
+        </span>
+      </div>
 
       {/* Overall Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -499,6 +633,8 @@ const Reports = () => {
           )}
         </div>
       </Card>
+
+      </div>{/* end reportRef */}
     </div>
   );
 };

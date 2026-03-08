@@ -49,7 +49,7 @@ export const taskService = {
         category_id: taskData.categoryId,
         location_id: taskData.locationId,
         due_date: taskData.dueDate,
-        status: 'open',
+        status: taskData.status || 'open',
         created_by: taskData.createdBy
       };
 
@@ -175,6 +175,30 @@ export const taskService = {
       console.error('❌ Delete task error:', error);
       throw error;
     }
+  },
+
+  // Reject task request (requested → rejected)
+  async rejectRequest(taskId) {
+    const { data, error } = await supabase
+      .from('tasks')
+      .update({ status: 'rejected' })
+      .eq('id', taskId)
+      .select(`*, category:categories(id, name, color, code), location:locations(id, name, building, floor), creator:users!tasks_created_by_fkey(id, name, email)`)
+      .single();
+    if (error) throw error;
+    return this._mapTask(data);
+  },
+
+  // Approve task request (requested → open)
+  async approveRequest(taskId, approverId) {
+    const { data, error } = await supabase
+      .from('tasks')
+      .update({ status: 'open', approved_by: approverId, approved_at: new Date().toISOString() })
+      .eq('id', taskId)
+      .select(`*, category:categories(id, name, color, code), location:locations(id, name, building, floor), creator:users!tasks_created_by_fkey(id, name, email)`)
+      .single();
+    if (error) throw error;
+    return this._mapTask(data);
   },
 
   // Claim task

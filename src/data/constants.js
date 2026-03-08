@@ -1,5 +1,7 @@
 // Task Status Constants
 export const TASK_STATUS = {
+  REQUESTED: 'requested',
+  REJECTED: 'rejected',
   OPEN: 'open',
   IN_PROGRESS: 'in_progress',
   PENDING_APPROVAL: 'pending_approval',
@@ -57,6 +59,8 @@ export const PRIORITY_COLORS = {
 
 // Status Labels
 export const STATUS_LABELS = {
+  [TASK_STATUS.REQUESTED]: 'Requested',
+  [TASK_STATUS.REJECTED]: 'Rejected',
   [TASK_STATUS.OPEN]: 'Open',
   [TASK_STATUS.IN_PROGRESS]: 'In Progress',
   [TASK_STATUS.PENDING_APPROVAL]: 'Pending Approval',
@@ -67,6 +71,8 @@ export const STATUS_LABELS = {
 
 // Status Colors
 export const STATUS_COLORS = {
+  [TASK_STATUS.REQUESTED]: 'orange',
+  [TASK_STATUS.REJECTED]: 'red',
   [TASK_STATUS.OPEN]: 'blue',
   [TASK_STATUS.IN_PROGRESS]: 'yellow',
   [TASK_STATUS.PENDING_APPROVAL]: 'purple',
@@ -80,6 +86,21 @@ export const ROLE_LABELS = {
   [USER_ROLES.MASTER_ADMIN]: 'Master Admin',
   [USER_ROLES.MANAGER]: 'Manager',
   [USER_ROLES.TECHNICIAN]: 'Technician'
+};
+
+// Contract Status Constants
+export const CONTRACT_STATUS = {
+  ACTIVE: 'active',
+  EXPIRING_SOON: 'expiring_soon',
+  EXPIRED: 'expired',
+  CANCELLED: 'cancelled'
+};
+
+export const CONTRACT_STATUS_LABELS = {
+  active: 'Active',
+  expiring_soon: 'Expiring Soon',
+  expired: 'Expired',
+  cancelled: 'Cancelled'
 };
 
 export default {

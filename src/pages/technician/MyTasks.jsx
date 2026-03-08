@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   CheckCircle, 
   Clock, 
@@ -61,70 +62,102 @@ const MyTasks = () => {
   // Messages
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [modalError, setModalError] = useState('');
 
   // Get today's date string
   const today = new Date().toISOString().split('T')[0];
 
-  // Get start of week (Monday)
-  const getStartOfWeek = () => {
+  // Period view state
+  const [viewPeriod, setViewPeriod] = useState('weekly'); // 'weekly' | 'monthly' | 'yearly'
+
+  // Period date range helpers
+  const getPeriodRange = () => {
     const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Sunday
-    return new Date(now.setDate(diff)).toISOString().split('T')[0];
+    if (viewPeriod === 'weekly') {
+      const day = now.getDay();
+      const start = new Date(now);
+      start.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      return {
+        start: start.toISOString().split('T')[0],
+        end: end.toISOString().split('T')[0]
+      };
+    }
+    if (viewPeriod === 'monthly') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return {
+        start: start.toISOString().split('T')[0],
+        end: end.toISOString().split('T')[0]
+      };
+    }
+    // yearly
+    return {
+      start: `${now.getFullYear()}-01-01`,
+      end: `${now.getFullYear()}-12-31`
+    };
   };
 
-  // Get end of week (Sunday)
-  const getEndOfWeek = () => {
-    const startOfWeek = new Date(getStartOfWeek());
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(endOfWeek.getDate() + 6);
-    return endOfWeek.toISOString().split('T')[0];
-  };
+  const periodRange = getPeriodRange();
 
-  const weekStart = getStartOfWeek();
-  const weekEnd = getEndOfWeek();
+  // Period label for display
+  const formatPeriodLabel = () => {
+    const now = new Date();
+    if (viewPeriod === 'weekly') {
+      const { start, end } = periodRange;
+      const s = new Date(start);
+      const e = new Date(end);
+      return `${s.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} – ${e.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+    }
+    if (viewPeriod === 'monthly') {
+      return now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    }
+    return `Year ${now.getFullYear()}`;
+  };
 
   // Filter my tasks (assigned to me and in progress)
-  const myTasks = tasks.filter(t => 
-    t.assigneeId === user?.id && 
+  const myTasks = tasks.filter(t =>
+    t.assigneeId === user?.id &&
     (t.status === TASK_STATUS.IN_PROGRESS || t.status === TASK_STATUS.PENDING_APPROVAL)
   );
 
   // Filter my tasks by date filter
-  const filteredMyTasks = taskFilter === 'today' 
+  const filteredMyTasks = taskFilter === 'today'
     ? myTasks.filter(t => t.dueDate === today)
     : myTasks;
 
-  // Pool tasks (open tasks available for claiming)
-  const poolTasks = tasks.filter(t => 
-    t.status === TASK_STATUS.OPEN && 
-    !t.assigneeId &&
-    t.dueDate >= today // Only show today and future tasks
+  // Pool tasks (open tasks available for claiming — includes overdue)
+  const poolTasks = tasks.filter(t =>
+    t.status === TASK_STATUS.OPEN &&
+    !t.assigneeId
   );
 
   // Today's pool tasks
   const todayPoolTasks = poolTasks.filter(t => t.dueDate === today);
 
-  // Weekly stats (Monday to Sunday)
-  const weeklyTasks = tasks.filter(t => {
+  // Period stats (scoped to selected period)
+  const periodTasks = tasks.filter(t => {
     const taskDate = t.dueDate;
     const isMyTask = t.assigneeId === user?.id || t.submittedBy === user?.id;
-    const isInWeek = taskDate >= weekStart && taskDate <= weekEnd;
-    return isMyTask && isInWeek;
+    return isMyTask && taskDate >= periodRange.start && taskDate <= periodRange.end;
   });
 
-  const weeklyStats = {
-    total: weeklyTasks.length,
-    completed: weeklyTasks.filter(t => t.status === TASK_STATUS.COMPLETED).length,
-    inProgress: weeklyTasks.filter(t => t.status === TASK_STATUS.IN_PROGRESS).length,
-    pending: weeklyTasks.filter(t => t.status === TASK_STATUS.PENDING_APPROVAL).length,
-    issues: weeklyTasks.filter(t => t.status === TASK_STATUS.ISSUE).length,
-    skipped: weeklyTasks.filter(t => t.status === TASK_STATUS.SKIPPED).length
+  const periodStats = {
+    total: periodTasks.length,
+    completed: periodTasks.filter(t => t.status === TASK_STATUS.COMPLETED).length,
+    inProgress: periodTasks.filter(t => t.status === TASK_STATUS.IN_PROGRESS).length,
+    pending: periodTasks.filter(t => t.status === TASK_STATUS.PENDING_APPROVAL).length,
+    issues: periodTasks.filter(t => t.status === TASK_STATUS.ISSUE).length,
+    skipped: periodTasks.filter(t => t.status === TASK_STATUS.SKIPPED).length
   };
 
-  const weeklyCompletionRate = weeklyStats.total > 0 
-    ? Math.round(((weeklyStats.completed + weeklyStats.pending) / weeklyStats.total) * 100) 
+  const periodCompletionRate = periodStats.total > 0
+    ? Math.round(((periodStats.completed + periodStats.pending) / periodStats.total) * 100)
     : 0;
+
+  const weeklyStats = periodStats;
+  const weeklyCompletionRate = periodCompletionRate;
 
   // Fetch tasks on mount
   useEffect(() => {
@@ -165,12 +198,6 @@ const MyTasks = () => {
     });
   };
 
-  // Format week range
-  const formatWeekRange = () => {
-    const start = new Date(weekStart);
-    const end = new Date(weekEnd);
-    return `${start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} - ${end.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
-  };
 
   // Handle claim task
   const handleClaim = async (taskId) => {
@@ -253,27 +280,35 @@ const MyTasks = () => {
   };
 
   // Handle submit
+  const closeSubmitModal = () => {
+    setShowSubmitModal(false);
+    setSelectedTask(null);
+    setSubmitType(null);
+    setModalError('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validation based on submit type
     if (submitType === 'normal' || submitType === 'issue') {
       if (!submitForm.photoPreview) {
-        setErrorMessage('Please take or upload a photo');
+        setModalError('Please take or upload a photo');
         return;
       }
     }
-    
+
     if (submitType === 'issue' && !submitForm.remarks.trim()) {
-      setErrorMessage('Please describe the issue');
-      return;
-    }
-    
-    if (submitType === 'skipped' && !submitForm.skipReason.trim()) {
-      setErrorMessage('Please provide a reason for skipping');
+      setModalError('Please describe the issue');
       return;
     }
 
+    if (submitType === 'skipped' && !submitForm.skipReason.trim()) {
+      setModalError('Please provide a reason for skipping');
+      return;
+    }
+
+    setModalError('');
     setActionLoading(true);
     try {
       await submitTask(selectedTask.id, {
@@ -283,19 +318,17 @@ const MyTasks = () => {
         skipReason: submitForm.skipReason.trim() || null,
         userId: user.id
       });
-      
+
       setSuccessMessage(
         submitType === 'normal' ? 'Task submitted for approval!' :
         submitType === 'issue' ? 'Issue reported and submitted for review!' :
         'Skip request submitted for manager review!'
       );
-      
-      setShowSubmitModal(false);
-      setSelectedTask(null);
-      setSubmitType(null);
+
+      closeSubmitModal();
     } catch (error) {
       console.error('Submit error:', error);
-      setErrorMessage('Failed to submit: ' + error.message);
+      setModalError('Failed to submit: ' + error.message);
     } finally {
       setActionLoading(false);
     }
@@ -383,15 +416,29 @@ const MyTasks = () => {
           {/* Header & Big Metric */}
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-8">
             <div>
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <div className="p-1.5 rounded-full bg-[#fa4786]/10 border border-[#fa4786]/20">
                   <TrendingUp className="w-4 h-4 text-[#fa4786]" />
                 </div>
-                <span className="text-[#fa4786] font-bold text-xs tracking-wider uppercase">Weekly Overview</span>
+                <span className="text-[#fa4786] font-bold text-xs tracking-wider uppercase">Your Progress</span>
               </div>
-              {/* Brand Blue text instead of white */}
-              <h2 className="text-3xl font-bold text-[#002D72] tracking-tight">Your Progress</h2>
-              <p className="text-gray-500 mt-1 text-sm">{formatWeekRange()}</p>
+              {/* Period toggle */}
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl mb-3">
+                {['weekly', 'monthly', 'yearly'].map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setViewPeriod(p)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize ${
+                      viewPeriod === p
+                        ? 'bg-white text-[#002D72] shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <p className="text-gray-500 text-sm">{formatPeriodLabel()}</p>
             </div>
 
             <div className="flex items-baseline gap-1 text-[#002D72]">
@@ -778,8 +825,8 @@ const MyTasks = () => {
       )}
 
       {/* Claim Confirmation Modal */}
-      {showClaimConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {showClaimConfirm && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm animate-fade-in">
             <div className="p-6">
               <div className="text-center">
@@ -820,12 +867,13 @@ const MyTasks = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Unclaim Confirmation Modal */}
-      {showUnclaimConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {showUnclaimConfirm && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm animate-fade-in">
             <div className="p-6">
               <div className="text-center">
@@ -866,12 +914,13 @@ const MyTasks = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Submit Task Modal */}
-      {showSubmitModal && selectedTask && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {showSubmitModal && selectedTask && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-fade-in">
             <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
               <div className="flex items-center justify-between">
@@ -894,11 +943,7 @@ const MyTasks = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => {
-                    setShowSubmitModal(false);
-                    setSelectedTask(null);
-                    setSubmitType(null);
-                  }}
+                  onClick={closeSubmitModal}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500" />
@@ -1015,15 +1060,19 @@ const MyTasks = () => {
                 </>
               )}
 
+              {/* Modal Error */}
+              {modalError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  {modalError}
+                </div>
+              )}
+
               {/* Submit Buttons */}
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowSubmitModal(false);
-                    setSelectedTask(null);
-                    setSubmitType(null);
-                  }}
+                  onClick={closeSubmitModal}
                   className="flex-1 btn-secondary"
                   disabled={actionLoading}
                 >
@@ -1057,7 +1106,8 @@ const MyTasks = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

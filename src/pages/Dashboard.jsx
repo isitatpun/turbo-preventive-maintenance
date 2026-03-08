@@ -1,28 +1,31 @@
 import React, { useMemo, useState } from 'react';
-import { 
-  ClipboardList, 
-  Clock, 
-  CheckCircle, 
+import {
+  ClipboardList,
+  Clock,
+  CheckCircle,
   AlertTriangle,
   TrendingUp,
   Calendar,
   Users,
   ArrowRight,
-  Filter // Added Filter icon
+  Filter,
+  FileText
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { format, parseISO, isToday, getYear, addMonths } from 'date-fns';
+import { format, parseISO, isToday, getYear, addMonths, differenceInDays, isAfter, isBefore } from 'date-fns';
 import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
 import useTaskStore from '../store/taskStore';
 import useUserStore from '../store/userStore';
 import useAuthStore from '../store/authStore';
+import useContractStore from '../store/contractStore';
 import { TASK_STATUS } from '../data/constants';
 
 const Dashboard = () => {
   const { user, isManager, isTechnician } = useAuthStore();
   const { tasks, categories, locations } = useTaskStore();
   const { users } = useUserStore();
+  const { contracts } = useContractStore();
 
   // 1. Year Filter State (Defaults to current year)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -102,6 +105,20 @@ const Dashboard = () => {
         .slice(0, 5);
     }
   }, [filteredTasks, user, isManager]); // Dependency changed from tasks to filteredTasks
+
+  // Contracts expiring within 60 days (2 months)
+  const expiringContracts = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const threshold = addMonths(now, 2);
+    return contracts
+      .filter(c => {
+        if (c.status !== 'active' || !c.endDate) return false;
+        const end = parseISO(c.endDate);
+        return isAfter(end, now) && isBefore(end, threshold);
+      })
+      .sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
+  }, [contracts]);
 
   const getCategoryName = (id) => categories.find(c => c.id === id)?.name || 'Unknown';
   const getCategoryColor = (id) => categories.find(c => c.id === id)?.color || '#6B7280';
@@ -294,6 +311,53 @@ const Dashboard = () => {
           </div>
         )}
       </Card>
+
+      {/* Expiring Contracts */}
+      {expiringContracts.length > 0 && (
+        <Card className="overflow-hidden">
+          <div className="px-6 py-4 border-b border-amber-100 bg-amber-50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              <h2 className="font-semibold text-amber-900">Contracts Expiring Soon</h2>
+              <span className="bg-amber-200 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full">
+                {expiringContracts.length}
+              </span>
+            </div>
+            <Link
+              to="/contracts"
+              className="text-sm font-medium text-amber-700 hover:text-amber-900 flex items-center gap-1"
+            >
+              View All
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {expiringContracts.map(contract => {
+              const daysLeft = differenceInDays(parseISO(contract.endDate), new Date());
+              return (
+                <div key={contract.id} className="px-6 py-4 hover:bg-gray-50 transition-colors flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{contract.supplierName}</p>
+                      <p className="text-sm text-gray-500">Expires {format(parseISO(contract.endDate), 'MMM d, yyyy')}</p>
+                    </div>
+                  </div>
+                  <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${
+                    daysLeft <= 14
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {daysLeft === 0 ? 'Today' : `${daysLeft}d left`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* Quick Actions for Manager */}
       {isManager() && (

@@ -13,13 +13,14 @@ import TaskHistory from './pages/TaskHistory';
 // Technician Pages
 import MyTasks from './pages/technician/MyTasks';
 
-// Manager Pages
-import TaskManagement from './pages/manager/TaskManagement';
+// Shared Pages
+import Tasks from './pages/Tasks';
 import Approvals from './pages/manager/Approvals';
 import Reports from './pages/manager/Reports';
 import Users from './pages/manager/Users';
 import Settings from './pages/manager/Settings';
 import Documentation from './pages/manager/Documentation';
+import Contracts from './pages/Contracts';
 
 import useAuthStore from './store/authStore';
 
@@ -52,8 +53,11 @@ function App() {
                     {/* Technician Routes */}
                     <Route path="/my-tasks" element={<MyTasks />} />
 
+                    {/* Shared Routes */}
+                    <Route path="/contracts" element={<Contracts />} />
+
                     {/* Manager Routes */}
-                    <Route path="/tasks" element={<TaskManagement />} />
+                    <Route path="/tasks" element={<Tasks />} />
                     <Route path="/approvals" element={<Approvals />} />
                     <Route path="/reports" element={<Reports />} />
                     <Route path="/users" element={<Users />} />

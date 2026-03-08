@@ -39,6 +39,7 @@ const Documentation = () => {
     database: false,
     authentication: false,
     workflow: false,
+    contracts: false,
     components: false,
     services: false,
     stores: false,
@@ -235,7 +236,8 @@ const Documentation = () => {
                   { title: 'Approve All', desc: 'Bulk approve all completed normal tasks only' },
                   { title: 'Reports', desc: 'Generate and export detailed reports (Reports.jsx)' },
                   { title: 'Team Overview', desc: 'Monitor technician workload and performance' },
-                  { title: 'Task Reassignment', desc: 'Reject tasks and set new due dates for pool' }
+                  { title: 'Task Reassignment', desc: 'Reject tasks and set new due dates for pool' },
+                  { title: 'Contracts', desc: 'Track and manage outsourced maintenance agreements (Contracts.jsx)' }
                 ].map((item, i) => (
                   <div key={i} className="p-3 bg-blue-50 rounded-lg border border-blue-100">
                     <p className="font-medium text-gray-900 text-sm">{item.title}</p>
@@ -260,7 +262,8 @@ const Documentation = () => {
                   { title: 'Report Issue', desc: 'Submit with photo (required) and issue description (required)' },
                   { title: 'Skip Task', desc: 'Request skip with reason for manager review' },
                   { title: 'Return to Pool', desc: 'Unclaim task to return it to the pool' },
-                  { title: 'Task History', desc: 'View completed and submitted tasks (TaskHistory.jsx)' }
+                  { title: 'Task History', desc: 'View completed and submitted tasks (TaskHistory.jsx)' },
+                  { title: 'Contracts', desc: 'View and manage outsourced maintenance agreements (Contracts.jsx)' }
                 ].map((item, i) => (
                   <div key={i} className="p-3 bg-green-50 rounded-lg border border-green-100">
                     <p className="font-medium text-gray-900 text-sm">{item.title}</p>
@@ -290,9 +293,9 @@ const Documentation = () => {
           <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
             <div className="flex items-center gap-2">
               <Table className="w-4 h-4 text-blue-500" />
-              <span className="font-medium text-gray-900 text-sm">6 Tables</span>
+              <span className="font-medium text-gray-900 text-sm">7 Tables</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1">categories, locations, settings, task_history, tasks, users</p>
+            <p className="text-xs text-gray-500 mt-1">categories, contracts, locations, settings, task_history, tasks, users</p>
           </div>
           <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
             <div className="flex items-center gap-2">
@@ -548,6 +551,44 @@ const Documentation = () => {
         </div>
       </div>
 
+      {/* Contracts Table */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Table className="w-4 h-4 text-teal-500" />
+          <h4 className="font-medium text-gray-900">contracts</h4>
+          <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full">Contracts</span>
+        </div>
+        <p className="text-sm text-gray-600 mb-3">
+          Tracks outsourced maintenance agreements. Computed statuses (expiring_soon, expired) are derived from <code className="bg-gray-100 px-1 rounded">end_date</code> on the frontend — only <code className="bg-gray-100 px-1 rounded">active</code> / <code className="bg-gray-100 px-1 rounded">cancelled</code> are stored.
+        </p>
+        <div className="overflow-x-auto border border-gray-200 rounded-lg">
+          <table className="w-full">
+            <thead>
+              <TableRow isHeader cells={['Column', 'Type', 'Description']} />
+            </thead>
+            <tbody>
+              <TableRow cells={['id', 'UUID (PK)', 'Auto-generated unique identifier']} />
+              <TableRow cells={['supplier_name', 'TEXT', 'Required — vendor legal or trade name']} />
+              <TableRow cells={['description', 'TEXT', 'Scope of work, SLA terms (optional)']} />
+              <TableRow cells={['start_date', 'DATE', 'Contract start date (required)']} />
+              <TableRow cells={['end_date', 'DATE', 'Contract end date (required)']} />
+              <TableRow cells={['contract_value', 'TEXT', 'Free-form value e.g. "120,000 THB" (optional)']} />
+              <TableRow cells={['contact_person', 'TEXT', 'Supplier contact name (optional)']} />
+              <TableRow cells={['phone', 'TEXT', 'Contact phone (optional)']} />
+              <TableRow cells={['email', 'TEXT', 'Contact email (optional)']} />
+              <TableRow cells={['notes', 'TEXT', 'Internal notes (optional)']} />
+              <TableRow cells={['category_id', 'UUID (FK)', 'categories.id — maintenance area covered']} />
+              <TableRow cells={['status', 'TEXT', '"active" or "cancelled" only']} />
+              <TableRow cells={['cancelled_at', 'TIMESTAMPTZ', 'Set when status is cancelled']} />
+              <TableRow cells={['cancelled_by', 'UUID (FK)', 'users.id — who cancelled']} />
+              <TableRow cells={['created_by', 'UUID (FK)', 'users.id — who created']} />
+              <TableRow cells={['created_at', 'TIMESTAMPTZ', 'Auto']} />
+              <TableRow cells={['updated_at', 'TIMESTAMPTZ', 'Auto via trigger']} />
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Database Views */}
       <div>
         <div className="flex items-center gap-2 mb-3">
@@ -609,7 +650,12 @@ task_history.new_assignee_id → users.id
 task_history.performed_by    → users.id
 
 -- Settings Reference
-settings.updated_by    → users.id`}
+settings.updated_by    → users.id
+
+-- Contracts References
+contracts.category_id  → categories.id
+contracts.cancelled_by → users.id
+contracts.created_by   → users.id`}
           </CodeBlock>
         </div>
       </div>
@@ -958,10 +1004,17 @@ ON preventive_maintenance.users(google_id);`}
             </thead>
             <tbody>
               <TableRow cells={['/login', 'Public', 'Login.jsx']} />
-              <TableRow cells={['/manager/*', 'Master Admin, Manager', 'Manager pages']} />
-              <TableRow cells={['/technician/*', 'Master Admin, Technician', 'Technician pages']} />
+              <TableRow cells={['/dashboard', 'All authenticated', 'Dashboard.jsx']} />
+              <TableRow cells={['/contracts', 'All authenticated', 'Contracts.jsx']} />
+              <TableRow cells={['/calendar', 'All authenticated', 'Calendar.jsx']} />
+              <TableRow cells={['/history', 'All authenticated', 'TaskHistory.jsx']} />
+              <TableRow cells={['/my-tasks', 'All authenticated (technician view)', 'MyTasks.jsx']} />
+              <TableRow cells={['/tasks', 'Manager / Admin', 'TaskManagement.jsx']} />
+              <TableRow cells={['/approvals', 'Manager / Admin', 'Approvals.jsx']} />
+              <TableRow cells={['/reports', 'Manager / Admin', 'Reports.jsx']} />
+              <TableRow cells={['/users', 'Manager / Admin', 'Users.jsx']} />
               <TableRow cells={['/settings', 'All authenticated', 'Settings.jsx']} />
-              <TableRow cells={['/documentation', 'All authenticated', 'Documentation.jsx']} />
+              <TableRow cells={['/docs', 'Manager / Admin', 'Documentation.jsx']} />
             </tbody>
           </table>
         </div>
@@ -1105,9 +1158,104 @@ export const SUBMISSION_STATUS = {
         )}
       </div>
 
+      {/* Contracts Section */}
+      <div className="space-y-4">
+        <SectionHeader id="contracts" icon={FileText} title="6. Contracts Module" color="bg-teal-500" />
+        {expandedSections.contracts && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6 ml-4">
+
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3">Overview</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                The Contracts module (<code className="bg-gray-100 px-1 rounded">src/pages/Contracts.jsx</code>) is a shared page accessible to both managers and technicians.
+                It tracks outsourced maintenance agreements, surfaces expiry alerts proactively, and archives cancellations with a full audit trail.
+              </p>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3">Contract Status Logic</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Status is <strong>computed on the frontend</strong> from <code className="bg-gray-100 px-1 rounded">end_date</code>. Only <code className="bg-gray-100 px-1 rounded">active</code> and <code className="bg-gray-100 px-1 rounded">cancelled</code> are stored in the database.
+              </p>
+              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="w-full">
+                  <thead>
+                    <TableRow isHeader cells={['Computed Status', 'Condition', 'Badge Color', 'DB Value']} />
+                  </thead>
+                  <tbody>
+                    <TableRow cells={['Active', 'end_date > today + 30d', 'Green', 'active']} />
+                    <TableRow cells={['Expiring Soon', 'end_date − today ≤ 30d', 'Yellow', 'active']} />
+                    <TableRow cells={['Expired', 'end_date < today', 'Red', 'active']} />
+                    <TableRow cells={['Cancelled', 'status = "cancelled"', 'Gray', 'cancelled']} />
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3">Business Rules</h3>
+              <ul className="space-y-2">
+                {[
+                  'Both managers and technicians can create, renew, and cancel contracts.',
+                  'Cancellation is permanent — cancelled contracts are read-only archives. Create a new contract to re-engage.',
+                  'Renewal overwrites previous start/end dates and resets computed status to Active.',
+                  'Expired contracts remain fully actionable (renew or cancel).',
+                  'Category link ties a contract to a Task Category (e.g., HVAC, Electrical).',
+                  'Alert banners for expired and expiring-soon contracts are shown at the top of the page.',
+                  'Success messages auto-dismiss after 3 seconds.'
+                ].map((rule, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                    <CheckCircle className="w-4 h-4 text-teal-500 mt-0.5 flex-shrink-0" />
+                    {rule}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3">Data Flow</h3>
+              <div className="p-4 bg-gray-50 rounded-lg font-mono text-sm text-gray-700">
+                Contracts.jsx → contractStore.js → contractService.js → Supabase
+              </div>
+              <div className="mt-3 overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="w-full">
+                  <thead>
+                    <TableRow isHeader cells={['File', 'Role']} />
+                  </thead>
+                  <tbody>
+                    <TableRow cells={['src/pages/Contracts.jsx', 'Page UI — table layout, modals, alert banners']} />
+                    <TableRow cells={['src/store/contractStore.js', 'Zustand store — contracts[], isLoading, error, actions']} />
+                    <TableRow cells={['src/services/contractService.js', 'Supabase queries — getAll, create, renew, cancel']} />
+                    <TableRow cells={['docs/Contracts.md', 'Full page documentation reference']} />
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3">Modals</h3>
+              <div className="grid md:grid-cols-2 gap-3">
+                {[
+                  { name: 'Create Contract', desc: 'Supplier Name*, Task Category, Start Date*, End Date*, Description, Contract Value, Contact Person, Phone, Email, Notes' },
+                  { name: 'Contract Detail', desc: 'Read-only view of all fields. Footer actions: Renew and Cancel (hidden for cancelled contracts).' },
+                  { name: 'Renew Contract', desc: 'New Start Date* and New End Date*. Overwrites previous dates.' },
+                  { name: 'Cancel Confirmation', desc: 'Irreversible warning. Options: Keep Contract or Confirm Cancellation.' }
+                ].map((m, i) => (
+                  <div key={i} className="p-3 bg-teal-50 rounded-lg border border-teal-100">
+                    <p className="font-medium text-gray-900 text-sm">{m.name}</p>
+                    <p className="text-xs text-gray-600 mt-1">{m.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        )}
+      </div>
+
       {/* Components Section */}
       <div className="space-y-4">
-        <SectionHeader id="components" icon={Layers} title="6. Components" color="bg-cyan-500" />
+        <SectionHeader id="components" icon={Layers} title="7. Components" color="bg-cyan-500" />
         {expandedSections.components && (
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6 ml-4">
             <div>
@@ -1226,7 +1374,7 @@ export const SUBMISSION_STATUS = {
 
       {/* Services Section */}
       <div className="space-y-4">
-        <SectionHeader id="services" icon={Server} title="7. Services Layer" color="bg-red-500" />
+        <SectionHeader id="services" icon={Server} title="8. Services Layer" color="bg-red-500" />
         {expandedSections.services && (
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6 ml-4">
             <div>
@@ -1343,6 +1491,27 @@ export const SUBMISSION_STATUS = {
                     </table>
                   </div>
                 </div>
+
+                {/* Contract Service */}
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="font-mono text-sm font-medium text-gray-900 mb-2">contractService.js</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-500 uppercase">
+                          <th className="pb-2">Method</th>
+                          <th className="pb-2">Description</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-gray-700">
+                        <tr><td className="py-1 font-mono text-xs">getAll()</td><td>Fetch all contracts (ordered by created_at desc)</td></tr>
+                        <tr><td className="py-1 font-mono text-xs">create(contractData)</td><td>Insert new contract, returns mapped row</td></tr>
+                        <tr><td className="py-1 font-mono text-xs">renew(id, startDate, endDate)</td><td>Update dates and reset status to active</td></tr>
+                        <tr><td className="py-1 font-mono text-xs">cancel(id, userId)</td><td>Set status=cancelled, record cancelled_at and cancelled_by</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1351,7 +1520,7 @@ export const SUBMISSION_STATUS = {
 
       {/* Stores Section */}
       <div className="space-y-4">
-        <SectionHeader id="stores" icon={HardDrive} title="8. State Management (Zustand)" color="bg-orange-500" />
+        <SectionHeader id="stores" icon={HardDrive} title="9. State Management (Zustand)" color="bg-orange-500" />
         {expandedSections.stores && (
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6 ml-4">
             <div>
@@ -1426,6 +1595,27 @@ deactivateUser(id)        // Deactivate user`}
                   </CodeBlock>
                 </div>
               </div>
+
+              {/* Contract Store */}
+              <div>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="font-mono text-sm font-medium text-gray-900 mb-2">contractStore.js</p>
+                  <p className="text-xs text-gray-600 mb-3">Contract state (accessible to all roles)</p>
+                  <CodeBlock>
+{`// State
+contracts: Contract[]
+isLoading: boolean
+error: string | null
+
+// Actions
+fetchContracts()               // Load all contracts
+createContract(data)           // Create new contract
+renewContract(id, start, end)  // Update dates, reset to active
+cancelContract(id, userId)     // Mark as cancelled
+clearError()                   // Clear error state`}
+                  </CodeBlock>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1433,7 +1623,7 @@ deactivateUser(id)        // Deactivate user`}
 
       {/* Image Handling Section */}
       <div className="space-y-4">
-        <SectionHeader id="images" icon={Image} title="9. Image Handling" color="bg-pink-500" />
+        <SectionHeader id="images" icon={Image} title="10. Image Handling" color="bg-pink-500" />
         {expandedSections.images && (
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6 ml-4">
             <div>
@@ -1528,7 +1718,7 @@ const { data } = await supabase
 
       {/* Setup Section */}
       <div className="space-y-4">
-        <SectionHeader id="setup" icon={Settings} title="10. Setup & Installation" color="bg-gray-500" />
+        <SectionHeader id="setup" icon={Settings} title="11. Setup & Installation" color="bg-gray-500" />
         {expandedSections.setup && (
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6 ml-4">
             <div>
@@ -1591,7 +1781,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key`}
 
       {/* Project Structure Section */}
       <div className="space-y-4">
-        <SectionHeader id="structure" icon={FolderTree} title="11. Project Structure" color="bg-teal-500" />
+        <SectionHeader id="structure" icon={FolderTree} title="12. Project Structure" color="bg-teal-500" />
         {expandedSections.structure && (
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6 ml-4">
             <CodeBlock title="Complete Folder Structure">
@@ -1644,6 +1834,8 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key`}
 │   └── supabase.js                 # Supabase client config
 │
 ├── pages/
+│   ├── Contracts.jsx               # Contracts page (shared — all roles)
+│   │
 │   ├── manager/
 │   │   ├── Approvals.jsx           # Approval queue page
 │   │   ├── Documentation.jsx       # This documentation page
@@ -1665,6 +1857,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key`}
 ├── services/
 │   ├── authService.js              # Authentication API
 │   ├── categoryService.js          # Category CRUD API
+│   ├── contractService.js          # Contract CRUD API
 │   ├── index.js                    # Service exports
 │   ├── locationService.js          # Location CRUD API
 │   ├── settingsService.js          # Settings API
@@ -1674,6 +1867,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key`}
 │
 ├── store/
 │   ├── authStore.js                # Auth state (Zustand)
+│   ├── contractStore.js            # Contract state (Zustand)
 │   ├── taskStore.js                # Task state (Zustand)
 │   └── userStore.js                # User state (Zustand)
 │
@@ -1681,6 +1875,10 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key`}
 ├── App.jsx                         # Main app with routes
 ├── index.css                       # Global styles + Tailwind
 └── main.jsx                        # Entry point
+
+docs/
+├── Contracts.md                    # Contracts page documentation
+└── TaskManagement.md               # Task Management page documentation
 
 Root Files:
 ├── .env                            # Environment variables
