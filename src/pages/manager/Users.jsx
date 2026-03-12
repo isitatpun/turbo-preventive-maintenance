@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Search, 
-  Plus, 
-  Edit2, 
-  Trash2, 
+import {
+  Search,
+  Plus,
+  Edit2,
+  Trash2,
   MoreVertical,
   Mail,
   Phone,
@@ -12,7 +12,9 @@ import {
   X,
   Loader2,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import useUserStore from '../../store/userStore';
 import { USER_ROLES, ROLE_LABELS } from '../../data/constants';
@@ -95,6 +97,20 @@ const Users = () => {
       }
 
       handleCloseModal();
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Handle activate / deactivate
+  const handleToggleActive = async (user) => {
+    setFormLoading(true);
+    setActionMenu(null);
+    try {
+      await updateUser(user.id, { isActive: !user.isActive });
+      setSuccessMessage(user.isActive ? 'User deactivated' : 'User activated');
     } catch (err) {
       setFormError(err.message);
     } finally {
@@ -321,6 +337,16 @@ const Users = () => {
                                 >
                                   <Edit2 className="w-4 h-4" />
                                   Edit User
+                                </button>
+                                <button
+                                  onClick={() => handleToggleActive(user)}
+                                  disabled={formLoading}
+                                  className={`w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50 ${user.isActive ? 'text-amber-600' : 'text-emerald-600'}`}
+                                >
+                                  {user.isActive
+                                    ? <><UserX className="w-4 h-4" /> Deactivate</>
+                                    : <><UserCheck className="w-4 h-4" /> Activate</>
+                                  }
                                 </button>
                                 <button
                                   onClick={() => {
